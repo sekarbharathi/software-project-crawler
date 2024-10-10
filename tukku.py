@@ -9,10 +9,7 @@ from openai import OpenAI
 
 def get_all():
     # URL of the PAW Patrol Season 1 wiki page
-    urls = [f"https://tukku.net/203-lapset?page={k}" for k in range(1, 10)] + [
-        f"https://tukku.net/131-huonekalut-pienkalusteet?page={k}" for k in range(1, 44)
-    ]
-
+    urls = get_combined_urls()
     results = []
     for url in urls:
         response = requests.get(url)
@@ -57,6 +54,47 @@ def get_all():
             )
 
     json.dump(results, open("tukku_products.json", "w"), indent=2)
+
+def get_combined_urls():
+    categoryURLs = []
+    urls = get_category_urls()
+    for url in urls:
+        maxPagenum = get_maxPage(url)
+        categoryURLs.extend([f"{url}?page={k}" for k in range(1, maxPagenum + 1)])
+
+    return categoryURLs
+
+def get_category_urls():
+    categoryUrls = []
+    baseUrl = "https://tukku.net"
+    response = requests.get(baseUrl)
+    response.raise_for_status()
+    soup = BeautifulSoup(response.text, "html.parser")
+    li_elements = soup.find_all('li', class_='mm_menus_li')
+    for li in li_elements:
+        a_tag = li.find('a')
+        categoryUrls.append(a_tag.get('href'))
+    return  categoryUrls
+
+
+def get_maxPage(url):
+    pageNums = []
+    response = requests.get(url)
+    response.raise_for_status()
+    soup = BeautifulSoup(response.text, "html.parser")
+    page_ul = soup.find_all('ul', class_='page-list')
+    for ul in page_ul:
+        page_li = ul.find_all('li')
+        for li in page_li:
+            a_tag = li.find('a')
+            if a_tag:
+                text = a_tag.text.strip()
+                try:
+                    number = int(text)
+                    pageNums.append(number)
+                except ValueError:
+                    pass
+    return max(pageNums)
 
 
 def get_individual():
@@ -206,9 +244,9 @@ def get_information_from_image():
 
 
 if __name__ == "__main__":
-    # get_all()
+    get_all()
     # get_individual()
     # translate()
 
     # Extract data from image
-    get_information_from_image()
+    # get_information_from_image()
