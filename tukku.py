@@ -53,7 +53,8 @@ def get_all():
                 }
             )
 
-    json.dump(results, open("tukku_products.json", "w"), indent=2)
+     with open("tukku_products.json", "w", encoding="utf-8") as f:
+        json.dump(products, f, ensure_ascii=False, indent=2)
 
 def get_combined_urls():
     categoryURLs = []
