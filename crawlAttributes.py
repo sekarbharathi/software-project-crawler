@@ -53,19 +53,14 @@ def get_specific_attribute_ollama(product):
     url = "http://195.148.30.36:11434/api/generate"
     data = {
         "model": "llama3.2",  # Specify the model you deployed
-        "prompt": "You are a data extraction assistant. From the following product description, extract the key details into a structured JSON format. Here’s the product description:" + product['description'] + 
-        "### Expected JSON Format:\n"
-                "{\n"
-                '    "model": "llama3.2",\n'
-                '    "created_at": "2024-10-23T12:40:23.37749056Z",\n'
-                '    "response": {\n'
-                '        "material": "wool",\n'
-                '        "color": "red",\n'
-                '        "weight": "3000g/m²/24h",\n'
-                '        "height": "5000mm"\n'
-                '    },\n'
-                '    "done": false\n'
-                "}"
+        "prompt": (
+            "You are a data extraction assistant. Based on the following product description, "
+            "extract the main product attributes and return them as key-value pairs in JSON format. "
+            "Only include attributes that are specifically mentioned in the description. "
+            "The JSON structure should include fields like 'material', 'color', 'weight', and 'height' if available. "
+            "Make sure the output contains only the JSON object with key-value pairs, without escape characters or extra formatting."
+            "\n\nHere’s the product description:\n" + product['description']
+        )
     }
 
     try:
@@ -73,42 +68,38 @@ def get_specific_attribute_ollama(product):
     except e:
         print("NOT WORKINGGGGGGG ", e)
 
+    import json
+
     if response.status_code == 200:
         try:
-            # Print the raw response text for debugging
-            #print("Raw response text:", response.text)
-
-            # Check if the response has multiple JSON objects
-            json_objects = []
-            for line in response.text.strip().splitlines():
+            # Collect each 'response' from the JSON objects and concatenate them
+            concatenated_response = ""
+            for item in response.text.strip().splitlines():
                 try:
-                    json_objects.append(json.loads(line))  # Parse each line as JSON
+                    json_line = json.loads(item)
+                    if 'response' in json_line:
+                        concatenated_response += json_line['response']
                 except json.JSONDecodeError:
-                    print(f"Failed to decode line: {line}")  # Print failed lines
-
-            # Combine all JSON objects into a single dictionary if needed
-            # This part can be adjusted depending on your needs
-            result = {'results': json_objects}  # Wrap the list in a dictionary
-
-            # Ensure the expected key is present in the response
-            if 'text' in result:
-                # Clean the generated attributes
-                clean_result = result['text'].replace("\\", "")  # Remove backslashes
-                print("Generated Attributes:", clean_result)
-
-            # Save the JSON result to a file
-            with open('result.json', 'w') as json_file:
-                json.dump(result, json_file, indent=4)  # Save the entire result as JSON
-            print("JSON result saved to 'result.json'")
-
-        except json.JSONDecodeError as e:
-            # Print the error if JSON decoding fails
-            print("Error decoding JSON:", e)
-            # print("Raw response:", response.text)  # Display raw response for troubleshooting
-
+                    print(f"Failed to decode line: {item}")
+    
+            # Attempt to parse the concatenated response as JSON
+            try:
+                product_attributes = json.loads(concatenated_response)
+                print("Parsed Product Attributes:", product_attributes)
+                
+                # Save the parsed attributes to a file if needed
+                with open('result.json', 'w') as json_file:
+                    json.dump(product_attributes, json_file, indent=4)
+                print("Parsed product attributes saved to 'result.json'")
+            
+            except json.JSONDecodeError:
+                print("Concatenated response is not valid JSON:", concatenated_response)
+            
+        except Exception as e:
+            print("Unexpected error:", e)
     else:
-        # Print the error message if the request fails
         print(f"Error: {response.status_code}, {response.text}")
+
 
 
 def get_description(product, soap):
