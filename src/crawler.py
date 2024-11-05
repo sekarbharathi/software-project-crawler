@@ -113,5 +113,6 @@ async def get_individual():
 
 
 if __name__ == "__main__":
-    # asyncio.run(get_all())
+    asyncio.run(get_all())
     # asyncio.run(get_individual())
+    # translate
