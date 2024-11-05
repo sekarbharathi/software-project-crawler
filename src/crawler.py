@@ -99,7 +99,7 @@ async def get_individual():
         async with aiohttp.ClientSession() as session:
             tasks = [
                 process_product_with_semaphore(semaphore, session, product, productsAmount, count)
-                for product in products[:100]
+                for product in products
             ]
             await asyncio.gather(*tasks)
             with open("tukku_products_detail_all.json", "w", encoding="utf-8") as f:
@@ -114,4 +114,4 @@ async def get_individual():
 
 if __name__ == "__main__":
     # asyncio.run(get_all())
-    asyncio.run(get_individual())
+    # asyncio.run(get_individual())

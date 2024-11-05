@@ -25,13 +25,26 @@ async def get_common_attributes(product, soup):
 
     await asyncio.gather(
         get_image_url(product, soup),
-        get_band(product, soup),
+        get_brand(product, soup),
         get_delivery_time(product, soup),
         get_discount(product, soup),
         get_description(product, soup),
         get_stock(product, soup),
-        get_category(product, soup)
+        get_category(product, soup),
+        get_review_and_rating(product, soup)
     )
+
+
+async def get_review_and_rating(product, soup):
+    try:
+        reviews = soup.find("div", class_="comments_note").find("span", class_="nb-comments").get_text(strip=True)
+        star_rating = len(soup.find("div", class_="star_content").find_all("div", class_="star"))
+    except:
+        reviews = "No reviews"
+        star_rating = 0
+    product["star_rating"] = star_rating
+    product["reviews"] = reviews
+
 
 def get_specific_attibute(product, soup):
     from openai import OpenAI
@@ -120,7 +133,7 @@ async def get_price(product, soap):
         product_price = ""
     product["price"] = product_price
 
-async def get_band(product, soup):
+async def get_brand(product, soup):
     try:
         with open("currentProduct.html", "w", encoding="utf-8") as file:
             file.write(soup.prettify())
