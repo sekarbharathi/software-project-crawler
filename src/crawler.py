@@ -34,7 +34,7 @@ async def process_page(session, curPage, results, count, products_num):
             product_data = {
                 "name": product.find("h3", class_="product-title").get_text(strip=True),
                 "url": product.find("a")["href"],
-                "product_id": product.get("data-id-product", ""),
+                "product_id": product.find("p", class_="pl_reference").find("strong").text.strip(),
             }
             count[0] += 1
             print(f"{count[0]}/{products_num} ({(count[0] / products_num) * 100:.2f}%)")
