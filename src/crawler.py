@@ -1,3 +1,4 @@
+
 import csv
 import json
 import random
@@ -6,9 +7,10 @@ import aiohttp
 from bs4 import BeautifulSoup
 import scraper
 import crawlAttributes
+import ollamaAPI
 
 
-async def fetch_page(session, url, min_delay=0.1, max_delay=0.5, retries=3):
+async def fetch_page(session, url, min_delay=0.2, max_delay=0.9, retries=3):
     for attempt in range(retries):
         try:
             async with session.get(url, timeout=15) as response:
@@ -51,7 +53,7 @@ async def get_all():
     count = [0]
 
     # Limit the number of concurrent requests to 10
-    semaphore = asyncio.Semaphore(10)
+    semaphore = asyncio.Semaphore(5)
     async with aiohttp.ClientSession() as session:
         tasks = [
             process_page_with_semaphore(semaphore, session, curPage, results, count, products_num)
@@ -113,6 +115,7 @@ async def get_individual():
 
 
 if __name__ == "__main__":
-    asyncio.run(get_all())
+    # asyncio.run(get_all())
     # asyncio.run(get_individual())
+    asyncio.run(ollamaAPI.handle_products_translation())
     # translate
