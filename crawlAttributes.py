@@ -1,12 +1,13 @@
-#from openai import OpenAI
 import json
+import asyncio
+from audioop import error
+
 import requests
 from bs4 import BeautifulSoup
 import re
-import  ollama
 # Todo: Add try catch to handle no value
 def getAttributes(url):
-    products = json.load(open("tukku_products.json"))
+    products = json.load(open("tukku_products_category.json"))
     for index, product in enumerate(products):
         if index<1:
             url = product['url']
@@ -14,97 +15,40 @@ def getAttributes(url):
             response.raise_for_status()
             soup = BeautifulSoup(response.text, "html.parser")
             get_common_attributes(product, soup)
-            # get_specific_attibute(product, soup)
-            get_specific_attribute_ollama(product)
 
-    with open("tukku_products_all.json", "w", encoding="utf-8") as f:
+    with open("tukku_products_detail_category.json", "w", encoding="utf-8") as f:
         json.dump(products, f, ensure_ascii=False, indent=2)
 
 
-def get_common_attributes(product, soup):
-    get_image_url(product, soup)
-    get_band(product, soup)
-    get_delivery_time(product, soup)
-    get_discount(product, soup)
-    get_description(product, soup)
-    get_stock(product, soup)
+async def get_common_attributes(product, soup):
 
-def get_specific_attibute(product, soup):
-    from openai import OpenAI
-    with OpenAI(
-            api_key="sk-6Kdct2IBYgkgvEie96E2C33dF5D0484dB80d9a9674DfFf41",
-            base_url="https://ai-yyds.com/v1"
-    ) as client:
-        response = client.chat.completions.create(
-            model="gpt-4o",
-            messages=[
-                {
-                    "role": "system",
-                    "content": "Based on the description I give, please return key-value string pairs supporting search engine searching with related products. No name and description required. Make sure the output contains no escape characters or additional formatting. Do not include backslashes or any unnecessary characters. List at most 10 specifications that buyers care about when purchasing this kind of product. Keep it short and concise. Only return the dictionary itself, and the language should be English.This is the description:" + product['description'],
-                }
-            ],
-            temperature=0.0,
-        )
-        result = re.sub(r"\\", "",  response.choices[0].message.content)
-        print(result)
-        product['attributes'] = result
+    await asyncio.gather(
+        get_image_url(product, soup),
+        get_brand(product, soup),
+        get_delivery_time(product, soup),
+        get_price(product, soup),
+        get_discount(product, soup),
+        get_description(product, soup),
+        get_stock(product, soup),
+        get_category(product, soup),
+        get_review_and_rating(product, soup)
+    )
 
-def get_specific_attribute_ollama(product):
-    url = "http://195.148.30.36:11434/api/generate"
-    data = {
-        "model": "llama3.2",  # Specify the model you deployed
-        "prompt": (
-            "You are a data extraction assistant. Based on the following product description, "
-            "extract the main product attributes and return them as key-value pairs in JSON format. "
-            "Only include attributes that are specifically mentioned in the description. "
-            "The JSON structure should include fields like 'material', 'color', 'weight', and 'height' if available. "
-            "Make sure the output contains only the JSON object with key-value pairs, without escape characters or extra formatting."
-            "\n\nHere’s the product description:\n" + product['description']
-        )
-    }
 
+async def get_review_and_rating(product, soup):
     try:
-        response = requests.post(url, json=data)
-    except e:
-        print("NOT WORKINGGGGGGG ", e)
-
-    import json
-
-    if response.status_code == 200:
-        try:
-            # Collect each 'response' from the JSON objects and concatenate them
-            concatenated_response = ""
-            for item in response.text.strip().splitlines():
-                try:
-                    json_line = json.loads(item)
-                    if 'response' in json_line:
-                        concatenated_response += json_line['response']
-                except json.JSONDecodeError:
-                    print(f"Failed to decode line: {item}")
-    
-            # Attempt to parse the concatenated response as JSON
-            try:
-                product_attributes = json.loads(concatenated_response)
-                print("Parsed Product Attributes:", product_attributes)
-                
-                # Save the parsed attributes to a file if needed
-                with open('result.json', 'w') as json_file:
-                    json.dump(product_attributes, json_file, indent=4)
-                print("Parsed product attributes saved to 'result.json'")
-            
-            except json.JSONDecodeError:
-                print("Concatenated response is not valid JSON:", concatenated_response)
-            
-        except Exception as e:
-            print("Unexpected error:", e)
-    else:
-        print(f"Error: {response.status_code}, {response.text}")
+        reviews = soup.find("div", class_="comments_note").find("span", class_="nb-comments").get_text(strip=True)
+        star_rating = len(soup.find("div", class_="star_content").find_all("div", class_="star"))
+    except:
+        reviews = "No reviews"
+        star_rating = 0
+    product["star_rating"] = star_rating
+    product["reviews"] = reviews
 
 
-
-def get_description(product, soap):
-    description = soap.find("div", class_="product-description").find_all("p")
-    description = "\n".join(p.get_text(strip=True) for p in description)
+async def get_description(product, soap):
+    descriptions = soap.find("div", class_="product-description").find_all("p")
+    description = "\n".join(p.get_text(strip=True) for p in descriptions)
     if description == "":
         description = soap.find("div", class_="product-description").find_all("div")
         description = "\n".join(p.get_text(strip=True) for p in description)
@@ -112,27 +56,87 @@ def get_description(product, soap):
         description = product["name"]
     product["description"] = description
 
-def get_image_url(product, soap):
-    product["image_url"] = soap.find("img", class_="thumb js-thumb selected")[
-        "data-image-large-src"
+async def get_image_url(product, soup):
+    image_url = ""
+    try:
+        img_tag = soup.find("img", class_="js-qv-product-cover")
+        image_url = img_tag["src"] if img_tag else ""
+
+    except error as e:
+        image_url=""
+        print(f"exception{e}")
+    product["image_url"]=image_url
+
+async def get_category(product, soup):
+    breadcrumn = soup.find("nav", class_="breadcrumb")
+    if breadcrumn:
+        categories = [span.get_text(strip=True) for span in breadcrumn.find_all("span", itemprop="name")]
+    else:
+        categories = []
+    product["categories"] = categories
+async def get_name(product, soap):
+    product["name"] = (
+        soap.find("h3", class_="h3 product-title").find("a").text.strip()
+    )
+
+async def get_id(product, soap):
+    product["id"] = (
+        soap.find("p", class_="pl_reference").find("strong").text.strip()
+    )
+
+async def get_url(product, soap):
+    product["url"] = soap.find("h3", class_="h3 product-title").find("a")[
+        "href"
     ]
 
-def get_band(product, soap):
-    product["brand"] = soap.find("a", class_="editable").find("span").text.strip()
+async def get_price(product, soup):
+    try:
+        price_span = soup.find("div", class_="current-price") or \
+                     soup.find("span", class_="price")
+        product_price = price_span.get_text(strip=True) if price_span else ""
+    except Exception as e:
+        print(f"Error extracting price: {e}")
+        product_price = ""
+    product["price"] = product_price
 
-def get_delivery_time(product, soap):
-    delivery = soap.find("span", id="product-availability").text.strip()
-    delivery_time = re.search(r'\b\d+(\.\d+)?\b', delivery)
-    delivery_time = delivery_time.group(0) if delivery_time else None
-    product["delivery"] =delivery_time
 
-def get_discount(product, soap):
+async def get_brand(product, soup):
+    try:
+        # Locate the div containing the brand information
+        brand_div = soup.find("div", class_="product-manufacturer")
+        if brand_div:
+            # Locate the anchor tag within the div
+            brand_anchor = brand_div.find("a")
+            if brand_anchor:
+                # Extract the brand name from the anchor tag's text
+                brand_text = brand_anchor.get_text(strip=True)
+            else:
+                brand_text = ""
+        else:
+            brand_text = ""
+    except Exception as e:
+        print(f"Error extracting brand: {e}")
+        brand_text = ""
+
+    # Assign the extracted brand to the product dictionary
+    product["brand"] = brand_text
+
+async def get_delivery_time(product, soap):
+    try:
+        delivery = soap.find("span", id="product-availability").text.strip()
+        delivery_time = re.search(r'\b\d+(\.\d+)?\b', delivery)
+        delivery_time = delivery_time.group(0) if delivery_time else None
+        product["delivery"] =delivery_time
+    except Exception as e:
+        print(e)
+
+async def get_discount(product, soap):
     discount = soap.find("span", class_="discount discount-amount")
     discount = discount.text.strip() if discount else None
     match = re.search(r'\d+,\d+', discount) if discount else None
     product["discount"] = match.group(0) if match else None
 
-def get_stock(product, soap):
+async def get_stock(product, soap):
     stock = soap.find("span", {'data-stock': True})
     stock_value = stock['data-stock'] if stock else None
     product["stock"] = stock_value
@@ -146,4 +150,3 @@ def get_stock(product, soap):
 
 if __name__ == "__main__":
     getAttributes('')
-    #get_specific_attribute_ollama()
