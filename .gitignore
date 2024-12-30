@@ -1,0 +1,14 @@
+# Ignore .idea folder (IDE config files)
+.idea/
+
+# Ignore lib folder
+lib/
+
+# Ignore Python virtual environment
+venv/
+ai_crawling_venv/
+
+# Ignore Python cache files
+__pycache__/
+*.pyc
+*.pyo
